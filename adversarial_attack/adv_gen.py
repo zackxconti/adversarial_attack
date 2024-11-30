@@ -32,24 +32,29 @@ def preprocess_image (image):
     return image_batch
 
 
-def denorm_image(batch, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+def deprocess_image(batch, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """ Denormalizes a batch of images by reversing normalization operations.
 
     Args:
         batch (torch.Tensor): The input image batch to denormalize.
-        device (torch.device): The device (CPU or GPU) to perform the operation on.
         mean (list, optional): The mean values used for normalization. Defaults to [0.485, 0.456, 0.406].
         std (list, optional): The standard deviation values used for normalization. Defaults to [0.229, 0.224, 0.225].
 
     Returns:
-        torch.Tensor: The denormalized image batch.
+        numpy.ndarray: The denormalized image batch, suitable for visualization (values in [0, 1]).
     """
+    
     if isinstance(mean, list):
         mean = torch.tensor(mean).to(device)
     if isinstance(std, list):
         std = torch.tensor(std).to(device)
 
-    return batch * std.view(1, -1, 1, 1) + mean.view(1, -1, 1, 1)
+    denormalize = transforms.Normalize(mean,std)
+    deprocessed_image = batch.squeeze().detach().cpu().numpy()
+    deprocessed_image = np.transpose(denormalize(torch.tensor( deprocessed_image)).numpy(), (1, 2, 0))
+    deprocessed_image = np.clip( deprocessed_image, 0, 1)
+    
+    return deprocessed_image
 
 def validate_model(model, image, labels):
     """ Validates the model's prediction on an input image.
@@ -136,3 +141,23 @@ def initial_prediction (model, image, labels):
     for i in range(probs_top5.size(0)):
         print(f"{labels[idx_top5[i]]}: {probs_top5[i].item()*100:.2f}%")
 
+def visualise (orig_image, adv_image):
+    """ Visualizes the original and adversarially perturbed images.
+
+    Args:
+        orig_image (PIL.Image): The original image to display.
+        adv_image (torch.Tensor): The perturbed (adversarial) image tensor to display.
+    """
+    perturbed_image = deprocess_image(adv_image)
+
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(orig_image)
+    plt.title("Original Image")
+    plt.axis("off")
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(perturbed_image)
+    plt.title("Adversarial Image")
+    plt.axis("off")
+    plt.show()
