@@ -26,8 +26,10 @@ def preprocess_image (image):
     ])  
 
     preprocessed_image = transform(image)
+    image_batch = preprocessed_image.unsqueeze(0)
+    image_batch = image_batch.to(device)
 
-    return preprocessed_image
+    return image_batch
 
 
 def denorm_image(batch, device, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
@@ -49,7 +51,7 @@ def denorm_image(batch, device, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0
 
     return batch * std.view(1, -1, 1, 1) + mean.view(1, -1, 1, 1)
 
-def validate_model(model, image, label_map=None):
+def validate_model(model, image, labels):
     """ Validates the model's prediction on an input image.
 
     Args:
@@ -61,14 +63,21 @@ def validate_model(model, image, label_map=None):
         int: The predicted class index.
     """
     model.eval()
-    outputs = model(image)
-    _, predicted_class = outputs.max(1)
-    class_index = predicted_class.item()
-    if label_map:
-        print(f"Model prediction: {label_map.get(class_index, 'Unknown')} (class {class_index})")
-    else:
-        print(f"Model prediction: Class {class_index}")
-    return class_index
+    pred = model(image)
+    probs = torch.nn.functional.softmax(pred[0], dim=0)
+    probs_top5, idx_top5 = torch.topk(probs, 5)
+
+    print("Misclassified prediction / top 5 labels:")
+    for i in range(probs_top5.size(0)):
+        print(f"{labels[idx_top5[i]]}: {probs_top5[i].item()*100:.2f}%")
+
+    # _, predicted_class = outputs.max(1)
+    # class_index = predicted_class.item()
+    # if labels:
+    #     print(f"Model prediction: {labels[class_index], 'Unknown')} (class {class_index})")
+    # else:
+    #     print(f"Model prediction: Class {class_index}")
+    # return class_index
 
 def generate_adversarial_noise(model, image, target_class, epsilon=0.03, alpha=0.005, iterations=100):
     """ Generates adversarial noise to misclassify the input image.
@@ -108,14 +117,13 @@ def generate_adversarial_noise(model, image, target_class, epsilon=0.03, alpha=0
 
     return adv_image
 
-def load_classes ():
+def load_classes (url):
     """ Loads the ImageNet class labels.
 
     Returns:
         list: A list of ImageNet class labels.
     """
-    imagenet_classes_url = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
-    urllib.request.urlretrieve(imagenet_classes_url, "imagenet_classes.txt")
+    urllib.request.urlretrieve(url, "imagenet_classes.txt")
     
     with open("imagenet_classes.txt") as f:
         imagenet_classes = [line.strip() for line in f.readlines()]
@@ -130,43 +138,41 @@ def initial_predition (model, image, labels):
         image (torch.Tensor): The input image tensor to classify.
         labels (list): A list of class labels corresponding to class indices.
     """
-
     pred = model(image)
     probs = torch.nn.functional.softmax(pred[0], dim=0)
-    
-    predicted_class = probs.argmax().item()
-    print(f"Class Index: {predicted_class}, Class Name: {labels[predicted_class]}")
     probs_top5, idx_top5 = torch.topk(probs, 5)
-    print("The top 5 labels of highly probabilies:")
+    
+    print("Initial prediction / top 5 labels:")
     for i in range(probs_top5.size(0)):
         print(f"{labels[idx_top5[i]]}: {probs_top5[i].item()*100:.2f}%")
 
 def main ():
 
-    print ("hello main has been executed")
+    # load pretrained model 
     model = models.resnet18(pretrained=True) 
-    model.eval()  # Set to evaluation mode
-
+    model.eval()  
+    model.to(device)
     torch.manual_seed(42)
 
+    # load original image from dataset
     dataset = datasets.CIFAR10(root="./data", train=False, download=True)
-    example_image, label = dataset[1]  
+    original_image, label = dataset[1]  
 
-    image_tensor = preprocess_image(example_image)
-    image_batch = image_tensor.unsqueeze(0)
-    image_batch = image_batch.to(device)
-    model = model.to(device)
+    # preprocess image
+    original_image_batch = preprocess_image(original_image)
 
-    labels = load_classes()
-    initial_predition(model, image_batch,labels)
-    print ('target class ', target_class)
+    # load class labels 
+    labels = load_classes("https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt")
+    
+    # make intial predictio (optional)
+    initial_predition(model, original_image_batch,labels)
 
+    # generate adversarial noise for target class of choice and validate
     target_class = 189 
+    adversarial_image = generate_adversarial_noise(model, original_image_batch, target_class)
+    validate_model(model, adversarial_image, labels)  
 
-    adversarial_image = generate_adversarial_noise(model, image_batch, target_class)
-
-    predicted_class = validate_model(model, adversarial_image)  
-    print ("predicted class = " ,labels[predicted_class])
+    # print ("predicted class = " ,labels[predicted_class])
 
     # # visualize the original and adversarial images
     # original_np = denorm_image(image_batch, device)
@@ -181,7 +187,6 @@ def main ():
     # plt.imshow(adversarial_np)
     # plt.title("Adversarial Image")
     # plt.axis("off")
-
     plt.show()
 
     
