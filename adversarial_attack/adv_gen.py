@@ -32,7 +32,7 @@ def preprocess_image (image):
     return image_batch
 
 
-def denorm_image(batch, device, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+def denorm_image(batch, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """ Denormalizes a batch of images by reversing normalization operations.
 
     Args:
@@ -83,14 +83,14 @@ def generate_adversarial_noise(model, image, target_class, epsilon=0.03, alpha=0
         alpha (float, optional): The step size for perturbations. Defaults to 0.005.
         iterations (int, optional): The number of iterations to apply adversarial updates. Defaults to 100.
     """
-    adv_image = image.clone().detach().requires_grad_(True)
+    perturbed_image = image.clone().detach().requires_grad_(True)
     target = torch.tensor([target_class]).to(device)
 
     criterion = nn.CrossEntropyLoss()
 
     for i in range(iterations):
         # forward pass
-        output = model(adv_image)
+        output = model(perturbed_image)
         loss = criterion(output, target)
 
         # zero the gradients, compute gradients
@@ -98,14 +98,14 @@ def generate_adversarial_noise(model, image, target_class, epsilon=0.03, alpha=0
         loss.backward()
 
         # update the adversarial image
-        adv_image = adv_image - alpha * adv_image.grad.sign()
-        adv_image = torch.clamp(adv_image, image - epsilon, image + epsilon)  
-        adv_image = torch.clamp(adv_image, 0, 1).detach().requires_grad_(True)
+        perturbed_image = perturbed_image - alpha * perturbed_image.grad.sign()
+        perturbed_image = torch.clamp(perturbed_image, image - epsilon, image + epsilon)  
+        perturbed_image = torch.clamp(perturbed_image, 0, 1).detach().requires_grad_(True)
 
         if i % 10 == 0:
             print(f"Iteration {i}/{iterations}, Loss: {loss.item()}")
 
-    return adv_image
+    return perturbed_image
 
 def load_classes (url):
     """ Loads the ImageNet class labels.
