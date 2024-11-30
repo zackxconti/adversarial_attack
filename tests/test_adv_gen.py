@@ -4,7 +4,7 @@ from torchvision import models, datasets
 
 from adversarial_attack.adv_gen import (
     preprocess_image,
-    denorm_image,
+    deprocess_image,
     generate_adversarial_noise,
 )
 
@@ -26,8 +26,8 @@ def test_preprocess_image():
         pytest.skip("Image file not found. Skipping test.")
 
 def test_deprocess_image(sample_image):
-    deprocessed = denorm_image(sample_image)
-    assert deprocessed.shape == (1, 3, 224, 224) 
+    deprocessed = deprocess_image(sample_image)
+    assert deprocessed.shape == (224, 224, 3) 
     assert deprocessed.min() >= 0 and deprocessed.max() <= 1  
 
 
