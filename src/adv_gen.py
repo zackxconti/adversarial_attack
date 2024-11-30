@@ -71,13 +71,6 @@ def validate_model(model, image, labels):
     for i in range(probs_top5.size(0)):
         print(f"{labels[idx_top5[i]]}: {probs_top5[i].item()*100:.2f}%")
 
-    # _, predicted_class = outputs.max(1)
-    # class_index = predicted_class.item()
-    # if labels:
-    #     print(f"Model prediction: {labels[class_index], 'Unknown')} (class {class_index})")
-    # else:
-    #     print(f"Model prediction: Class {class_index}")
-    # return class_index
 
 def generate_adversarial_noise(model, image, target_class, epsilon=0.03, alpha=0.005, iterations=100):
     """ Generates adversarial noise to misclassify the input image.
@@ -89,9 +82,6 @@ def generate_adversarial_noise(model, image, target_class, epsilon=0.03, alpha=0
         epsilon (float, optional): The magnitude of perturbations allowed. Defaults to 0.03.
         alpha (float, optional): The step size for perturbations. Defaults to 0.005.
         iterations (int, optional): The number of iterations to apply adversarial updates. Defaults to 100.
-
-    Returns:
-        torch.Tensor: The perturbed adversarial image.
     """
     adv_image = image.clone().detach().requires_grad_(True)
     target = torch.tensor([target_class]).to(device)
@@ -130,7 +120,7 @@ def load_classes (url):
 
     return imagenet_classes    
 
-def initial_predition (model, image, labels):
+def initial_prediction (model, image, labels):
     """ Makes an initial prediction on the input image and prints top 5 predicted classes.
 
     Args:
@@ -141,54 +131,8 @@ def initial_predition (model, image, labels):
     pred = model(image)
     probs = torch.nn.functional.softmax(pred[0], dim=0)
     probs_top5, idx_top5 = torch.topk(probs, 5)
-    
+
     print("Initial prediction / top 5 labels:")
     for i in range(probs_top5.size(0)):
         print(f"{labels[idx_top5[i]]}: {probs_top5[i].item()*100:.2f}%")
 
-def main ():
-
-    # load pretrained model 
-    model = models.resnet18(pretrained=True) 
-    model.eval()  
-    model.to(device)
-    torch.manual_seed(42)
-
-    # load original image from dataset
-    dataset = datasets.CIFAR10(root="./data", train=False, download=True)
-    original_image, label = dataset[1]  
-
-    # preprocess image
-    original_image_batch = preprocess_image(original_image)
-
-    # load class labels 
-    labels = load_classes("https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt")
-    
-    # make intial predictio (optional)
-    initial_predition(model, original_image_batch,labels)
-
-    # generate adversarial noise for target class of choice and validate
-    target_class = 189 
-    adversarial_image = generate_adversarial_noise(model, original_image_batch, target_class)
-    validate_model(model, adversarial_image, labels)  
-
-    # print ("predicted class = " ,labels[predicted_class])
-
-    # # visualize the original and adversarial images
-    # original_np = denorm_image(image_batch, device)
-    # adversarial_np = denorm_image(adversarial_image, device)
-    # plt.figure(figsize=(10, 5))
-    # plt.subplot(1, 2, 1)
-    # plt.imshow(original_np)
-    # plt.title("Original Image")
-    # plt.axis("off")
-
-    # plt.subplot(1, 2, 2)
-    # plt.imshow(adversarial_np)
-    # plt.title("Adversarial Image")
-    # plt.axis("off")
-    plt.show()
-
-    
-if __name__ == "__main__":
-    main()
